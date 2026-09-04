@@ -1,0 +1,394 @@
+MULTI-AGENT DECISION COURT
+Complete System Design — Module by Module
+Domain-independent Agentic AI decision validation platformDesigned for OpenRouter / Hugging Face free or low-cost models
+Purpose: transform a human-provided decision case into a structured decision graph, investigate its claims and evidence, challenge and defend the reasoning, reconcile conflicts, and produce an explainable, confidence-aware verdict with human oversight.
+1. Product Definition
+Multi-Agent Decision Court (MADC) is a general-purpose Agentic AI platform that evaluates whether a proposed decision is sufficiently justified by its requirements, evidence, reasoning, assumptions, theories, constraints, risks, and alternatives. It is not a domain-specific decision engine.
+1.1 Core Question
+Given this decision and the reasoning behind it, can the decision actually be justified?
+1.2 What the system is not
+Not a single chatbot that gives an answer.
+Not a majority-vote system where agents simply vote YES/NO.
+Not a system that blindly agrees with the user's initial decision.
+Not a system that invents missing evidence.
+2. End-to-End Architecture
+USER  ↓WEB UI / API  ↓API GATEWAY  ↓CASE MANAGEMENT  ↓INPUT & DOCUMENT PROCESSOR  ↓CASE DECOMPOSER  ↓DECISION GRAPH ENGINE  ↓COURT ORCHESTRATOR  ├── Case Analyst  ├── Claim Decomposer  ├── Evidence Investigator  ├── Assumption Auditor  ├── Logic Analyst  ├── Requirement Validator  ├── Theory Analyst  ├── Risk Analyst  ├── Prosecution  ├── Defense  ├── Alternative Generator  ├── Cross Examiner  └── Evidence Reconciliation  ↓JUDGE  ↓VERDICT + EXPLANATION + UNCERTAINTY  ↓HUMAN REVIEW  ↓AUDIT / VERSION HISTORY
+3. Module 1 — User & Authentication
+Purpose: secure access to cases and organizational knowledge.
+User registration/login
+Role-based access
+Case-level permissions
+Organization/tenant isolation
+Session management
+API authentication
+Roles:ADMINANALYSTREVIEWERDECISION_MAKERVIEWER
+4. Module 2 — Case Management
+Purpose: create, update, version, execute, review, and close decision cases.
+Create case
+Edit case
+Save draft
+Submit case to court
+Track processing state
+Create new case version
+Compare previous verdicts
+Archive/close case
+Case states:DRAFT → SUBMITTED → ANALYZING → INVESTIGATING → DEBATING→ RECONCILING → JUDGING → VERDICT_READY → HUMAN_REVIEW → CLOSED
+5. Module 3 — Universal Case Input
+The system must accept both structured and unstructured input.
+DecisionCase├── Problem├── Context├── Requirements├── Constraints├── Initial Analysis├── Proposed Decision├── Reasoning├── Claims├── Evidence├── Theories├── Assumptions├── Observations├── Risks├── Alternatives├── Expected Outcomes├── Documents└── External Sources
+Only Problem + Proposed Decision are the minimum useful inputs. Missing information must lower confidence, not be fabricated.
+6. Module 4 — Natural Language Case Decomposer
+Purpose: convert free-form user text into structured decision objects.
+Extract problem
+Extract requirements
+Extract claims
+Extract proposed decision
+Detect evidence
+Detect assumptions
+Detect theories
+Detect constraints
+Detect risks
+Detect alternatives
+Identify missing information
+Example:"I think X is better because it is cheaper and faster."→ Claim C1: X is cheaper→ Claim C2: X is faster→ Claim C3: X should therefore be selected→ Potential assumption: lower cost remains true in the target environment
+7. Module 5 — Document Ingestion
+Purpose: convert uploaded material into searchable, traceable evidence.
+PDF
+DOCX
+TXT
+CSV
+XLSX
+JSON
+Images where practical
+Document→ Parse→ Normalize→ Extract metadata→ Chunk→ Embed→ Store→ Index→ Retrieve with source/page/section provenance
+8. Module 6 — Evidence & Provenance
+Evidence is a first-class object, not merely text in a prompt.
+Evidence├── evidence_id├── source_type├── source_reference├── content├── timestamp├── author (when available)├── reliability├── relevance├── strength├── claims_supported└── claims_contradicted
+Provenance labels:
+USER_PROVIDED
+DOCUMENT_DERIVED
+SOURCE_VERIFIED
+TOOL_VERIFIED
+CALCULATED
+AGENT_INFERRED
+UNKNOWN
+9. Module 7 — Decision Graph Engine
+The decision graph is the central reasoning representation.
+Node types:CASE, PROBLEM, REQUIREMENT, CONSTRAINT, CLAIM, SUB_CLAIM,EVIDENCE, ASSUMPTION, THEORY, OBSERVATION, RISK, ALTERNATIVE,DECISION, OUTCOME, COUNTERARGUMENT, QUESTIONRelationships:SUPPORTS, CONTRADICTS, DEPENDS_ON, ASSUMES, DERIVED_FROM,SATISFIES, VIOLATES, CAUSED_BY, REFUTES, REQUIRES, ALTERNATIVE_TO
+Example:
+E1 --SUPPORTS--> C1A1 --ASSUMES--> C1C1 --SUPPORTS--> D1D1 --SATISFIES--> R1D1 --VIOLATES--> R2
+10. Module 8 — Court Orchestrator
+The orchestrator is the control plane for the multi-agent system.
+Plan case
+Select required agents dynamically
+Create tasks
+Manage dependencies
+Run independent tasks in parallel
+Collect findings
+Detect conflicts
+Trigger cross-examination
+Trigger reconciliation
+Invoke Judge
+Handle retries/fallbacks
+Case Analysis   ↓Claim Extraction   ↓┌──────────────┬──────────────┬──────────────┐Evidence       Logic          Requirements└──────────────┴──────────────┴──────────────┘   ↓Assumption Audit   ↓Prosecution + Defense   ↓Cross Examination   ↓Alternatives + Risk   ↓Reconciliation   ↓Judge
+11. Module 9 — Case Analyst Agent
+Responsibility: understand the decision case before specialized analysis begins.
+Define the decision objective
+Summarize context
+Identify scope
+Detect ambiguity
+Identify missing information
+Normalize the case
+12. Module 10 — Claim Decomposer Agent
+Break complex reasoning into atomic, testable claims.
+C1: X is cheaperC2: X is fasterC3: X is easier to maintainC4: Therefore X should be selected
+13. Module 11 — Evidence Investigator Agent
+For each claim, determine whether the available evidence actually supports it.
+Statuses:SUPPORTEDPARTIALLY_SUPPORTEDUNSUPPORTEDCONTRADICTEDUNKNOWN
+Relevance
+Reliability
+Directness
+Completeness
+Contradictory evidence
+Source quality
+14. Module 12 — Assumption Auditor Agent
+Identify explicit and hidden assumptions and map their dependencies.
+A1 → Teams can independently own servicesA2 → Migration cost is manageableA3 → Infrastructure cost remains stable
+Validated
+Partially validated
+Unverified
+Questionable
+Invalid
+15. Module 13 — Logic Analyst Agent
+Evaluate the reasoning chain without making psychological judgments about the user.
+Unsupported conclusion
+Contradictory reasoning
+Circular reasoning
+False premise
+Missing reasoning step
+Overgeneralization
+Correlation versus causation
+False analogy
+Post hoc reasoning
+Logical gaps
+16. Module 14 — Requirement Validator Agent
+Map the proposed decision to every requirement and constraint.
+SATISFIEDPARTIALLY_SATISFIEDUNSATISFIEDUNKNOWN
+A decision cannot be considered fully validated if it violates a critical requirement.
+17. Module 15 — Theory Analyst Agent
+Evaluate user-supplied theories and their preconditions.
+Theory→ Preconditions→ Supporting evidence→ Contradicting evidence→ Applicability→ Limitations→ Confidence
+18. Module 16 — Prosecution Agent
+Acts as the opposition counsel. Its purpose is to find credible reasons the decision could be wrong.
+Counter-evidence
+Weak assumptions
+Missing evidence
+Failure cases
+Hidden costs
+Alternative explanations
+Unconsidered constraints
+Better alternatives
+It must not invent facts.
+19. Module 17 — Defense Agent
+Attempts to defend the proposed decision using available valid evidence.
+The Defense must acknowledge weaknesses when the evidence does not support the user's position.
+20. Module 18 — Risk Analyst Agent
+Identify decision-relevant risks dynamically.
+Technical
+Financial
+Operational
+Security
+Compliance
+Resource
+Dependency
+Scalability
+Execution
+Reputational
+Human
+Data
+Unknown
+Avoid false precision when probability/impact data is unavailable.
+21. Module 19 — Alternative Generator Agent
+Generate relevant alternatives, not random options.
+Do nothing
+Optimize current solution
+Partial change
+Full change
+Hybrid
+Alternative approach
+Defer decision
+Collect more information
+Every alternative must be evaluated against the original requirements.
+22. Module 20 — Cross-Examination Engine
+This is the central adversarial mechanism.
+Claim ↓Evidence ↓Challenge ↓Defense response ↓Counter-challenge ↓Resolution / unresolved uncertainty
+Terminate debate when the conflict is resolved, no meaningful new argument is produced, or the maximum number of rounds is reached.
+23. Module 21 — Evidence Reconciliation
+Resolve disagreements among agents or sources.
+Compare evidence
+Check source authority
+Check date
+Check applicability
+Check interpretation
+Preserve unresolved conflicts
+RESOLVED_FORRESOLVED_AGAINSTPARTIALLY_RESOLVEDUNRESOLVED
+24. Module 22 — Alternative Comparison & Decision Matrix
+Compare the original decision with credible alternatives.
+                 A       B       CCost             8       6       9Performance      7       9       6Risk             8       5       7Requirement Fit  9       7       8Implementation   6       8       7
+Scores must be traceable to evidence or explicit assumptions.
+25. Module 23 — Sensitivity & What-If Engine
+Identify which assumptions and variables can change the verdict.
+Current Decision = AIf cost > threshold → Decision BIf performance < threshold → Decision C
+What if an assumption changes?
+What if evidence is removed?
+What if a requirement priority changes?
+What if cost doubles?
+What if a new constraint is introduced?
+26. Module 24 — Judge Agent
+The Judge is the final adjudicator. It must not use majority voting.
+Requirement alignment
+Evidence strength
+Logical validity
+Assumption validity
+Theory applicability
+Risk
+Alternatives
+Conflicting evidence
+Missing information
+Uncertainty
+The Judge must separately evaluate Decision Correctness and Decision Justification.
+27. Module 25 — Verdict Model
+VALIDPARTIALLY_VALIDINVALIDINSUFFICIENT_EVIDENCEINCONCLUSIVEHIGH_RISKREQUIRES_HUMAN_REVIEW
+Do not force every case into YES/NO.
+28. Module 26 — Final Decision Report
+Executive SummaryCase UnderstandingOriginal DecisionRequirementsClaimsEvidenceAssumptionsTheoriesLogic FindingsCounterargumentsDefense ArgumentsCross ExaminationRisksAlternativesConflicting EvidenceMissing InformationDecision SensitivityFinal VerdictConfidenceRecommended Next ActionsHuman Review
+29. Module 27 — LLM Provider Abstraction
+Use a provider interface so the system is not tied to one model.
+LLMProvider├── OpenRouterProvider└── HuggingFaceProvider
+Configuration should use environment variables, for example:
+LLM_PROVIDER=openrouterLLM_MODEL=<configured-model>OPENROUTER_API_KEY=<key>HUGGINGFACE_API_KEY=<key>
+Do not hardcode a particular free model. Models and provider limits change.
+30. Module 28 — Structured Output Reliability
+Free/open models may return malformed JSON. Implement:
+LLM response→ JSON extraction→ schema validation→ repair prompt→ retry→ fallback model/provider→ fail safely
+Use Pydantic schemas or equivalent.
+31. Module 29 — Tool Layer
+Tools should be controlled by application-level permissions.
+Web search
+RAG search
+SQL
+Python/calculator
+External APIs
+File parsing
+Knowledge base
+Agent ↓Tool request ↓Permission check ↓Tool execution ↓Sanitized result ↓Agent
+32. Module 30 — RAG / Knowledge Layer
+Documents ↓Parser ↓Chunking ↓Metadata ↓Embeddings ↓Vector storeRetrieval:Semantic search + keyword search + metadata filtering + citations
+Use pgvector with PostgreSQL for the MVP to reduce infrastructure complexity.
+33. Module 31 — Memory
+Case Memory→ facts, claims, evidence, findings, arguments, verdictSession Memory→ current conversation and user correctionsKnowledge Memory→ authorized policies, historical cases, standards, organizational knowledge
+Keep tenant/case boundaries strict.
+34. Module 32 — Agent Communication Protocol
+{  "case_id": "CASE-001",  "task_id": "TASK-001",  "agent": "evidence_investigator",  "target_id": "C1",  "status": "PARTIALLY_SUPPORTED",  "evidence_ids": ["E1"],  "reason": "Evidence supports performance but not cost.",  "confidence": 0.78,  "requires_followup": true}
+Use structured findings instead of free-form agent-to-agent conversations wherever possible.
+35. Module 33 — Task Graph / Parallel Execution
+Independent agents should run concurrently.
+Evidence Agent ─┐Logic Agent ─────┤Requirements ────┼→ Prosecution/Defense → Cross Exam → Reconciliation → JudgeAssumptions ─────┤Risk Agent ──────┘
+36. Module 34 — Incremental Re-evaluation
+When new evidence arrives, recompute only affected graph nodes.
+New Evidence E20 ↓Affected Claims ↓Affected Assumptions ↓Affected Requirements ↓Affected Decision ↓Rerun affected tasks only
+37. Module 35 — Versioning
+Case V1 → Verdict A   ↓ new evidenceCase V2 → Verdict B   ↓ changed assumptionCase V3 → Verdict C
+Never overwrite historical verdicts.
+38. Module 36 — Human-in-the-Loop
+The AI Court is an advisory validation system, not an autonomous authority.
+AI Verdict   ↓Human Review   ├── Accept   ├── Modify   └── Reject
+For high-impact decisions, require human approval and record the override reason.
+39. Module 37 — Audit Trail
+Case creation
+Input changes
+Agent execution
+Tool execution
+Evidence retrieval
+Findings
+Cross examination
+Conflicts
+Reconciliation
+Verdict
+Human override
+Store structured reasoning artifacts, not hidden model chain-of-thought.
+40. Module 38 — Security & Prompt Injection
+Authentication and authorization
+Tenant isolation
+Case access control
+Tool permissions
+Input validation
+Document sanitization
+Prompt injection defense
+Audit logging
+External documents and retrieved text are untrusted data. Instructions inside documents must never override system/agent instructions.
+41. Module 39 — Database Design
+PostgreSQL tables:usersorganizationscasescase_versionsrequirementsconstraintsclaimsevidenceassumptionstheoriesrisksalternativesdecisionsdecision_graph_nodesdecision_graph_edgesagent_tasksagent_findingsargumentscourt_sessionscourt_eventsverdictshuman_reviewsaudit_logsdocumentsdocument_chunks
+Use pgvector for semantic retrieval and object storage for uploaded files.
+42. Module 40 — API Design
+POST /api/casesGET  /api/cases/{caseId}PUT  /api/cases/{caseId}POST /api/cases/{caseId}/court/startGET  /api/cases/{caseId}/court/statusGET  /api/cases/{caseId}/findingsPOST /api/cases/{caseId}/cross-examinationGET  /api/cases/{caseId}/verdictPOST /api/cases/{caseId}/questionsPOST /api/cases/{caseId}/what-ifGET  /api/cases/{caseId}/history
+43. Module 41 — Frontend
+Recommended stack: React + TypeScript + Tailwind CSS + React Flow.
+Pages:DashboardCreate CaseCase WorkspaceDecision GraphCourt ProceedingsEvidence ExplorerAgent FindingsCross ExaminationAlternativesRisk AnalysisVerdictDecision HistorySettings
+44. Module 42 — Live Court UI
+CASE ANALYST             ✓ CompleteCLAIM DECOMPOSER         ✓ CompleteEVIDENCE INVESTIGATOR    ✓ CompleteLOGIC ANALYST            ✓ CompleteREQUIREMENT VALIDATOR    ✓ CompleteASSUMPTION AUDITOR       ✓ CompletePROSECUTION              ⚔ ActiveDEFENSE                  ⚔ WaitingCROSS EXAMINATION        ○ PendingRECONCILIATION           ○ PendingJUDGE                    ○ Pending
+Display structured findings and evidence references, not private chain-of-thought.
+45. Module 43 — Backend Project Structure
+backend/└── app/    ├── api/    ├── agents/    ├── orchestration/    ├── decision_graph/    ├── evidence/    ├── rag/    ├── memory/    ├── models/    ├── schemas/    ├── services/    └── tools/
+46. Module 44 — Frontend Project Structure
+frontend/└── src/    ├── components/    ├── pages/    ├── graph/    ├── court/    ├── evidence/    ├── verdict/    ├── api/    └── types/
+47. Module 45 — Recommended Technology Stack
+Frontend:React + TypeScript + Tailwind CSS + React FlowBackend:FastAPI + Python + Pydantic + SQLAlchemyDatabase:PostgreSQL + pgvectorFile storage:Object storage / local development storageLLM:OpenRouter and Hugging Face provider abstractionAsync execution:AsyncIO initially; message broker later if neededDeployment:Docker / Docker Compose for MVP
+A hybrid React + ASP.NET Core + Python Agent Service architecture is also suitable if enterprise .NET integration is required.
+48. Module 46 — Cost Optimization for Free Models
+Use smaller models for extraction/classification
+Use strongest available model for Judge/Cross Examination
+Send each agent only relevant graph nodes
+Compress context
+Cache stable retrieval results
+Run independent agents in parallel
+Limit debate rounds
+Use provider/model fallback
+Never rerun unaffected tasks
+49. Module 47 — Reliability
+Every task:timeout→ retry→ fallback model→ fallback provider→ safe failure
+Unavailable information must remain UNKNOWN.
+50. Module 48 — Observability
+Case latency
+Agent latency
+LLM latency
+Token usage
+Model failures
+Retry count
+Tool calls
+Retrieval quality
+Agent disagreement
+Judge confidence
+Estimated cost
+51. Module 49 — Edge Cases
+No evidence → INSUFFICIENT_EVIDENCE
+Evidence contradicts decision → INVALID or HIGH_CONCERN
+Evidence supports only part → PARTIALLY_VALID
+Conflicting requirements → REQUIREMENT_CONFLICT
+Missing requirements → REQUIREMENTS_UNCLEAR
+Contradictory user input → CASE_INCONSISTENCY
+Strong decision, weak evidence → PLAUSIBLE_BUT_INSUFFICIENTLY_SUPPORTED
+Strong evidence, bad reasoning → DECISION_NOT_JUSTIFIED
+Multiple valid decisions → MULTIPLE_VIABLE_OPTIONS
+Agent disagreement → CROSS_EXAMINATION + RECONCILIATION
+Unavailable source → UNVERIFIED
+Conflicting sources → CONFLICTING_EVIDENCE
+Correct outcome for wrong reason → DECISION_MAY_BE_CORRECT_BUT_JUSTIFICATION_INVALID
+No clear decision → DECISION_NOT_DEFINED
+52. Module 50 — Evaluation Framework
+Claim extraction accuracy
+Evidence grounding
+Requirement coverage
+Assumption detection
+Contradiction detection
+Verdict accuracy
+Alternative relevance
+Agent consistency
+Latency
+Cost per case
+Create a benchmark of valid, invalid, partially valid, insufficient-evidence, contradictory, ambiguous, and multiple-solution cases and compare Court verdicts with expert/human labels.
+53. Module 51 — Testing
+Unit tests for parsers, graph, schemas, state machine and scoring
+Agent tests for each specialized role
+End-to-end integration tests
+Adversarial tests
+Prompt injection tests
+Malformed JSON tests
+Tool failure tests
+Agent disagreement tests
+54. Module 52 — Complete Decision Flow Example
+User:Should we replace our current system with Solution X?Requirements:- Lower cost- Better performance- Minimal migration riskAnalysis:Current system is expensive and slow.Decision:Replace with X.Evidence:Benchmark says X is 40% faster.Theory:Faster system means lower cost.Assumption:Migration takes one month.Court:1. Extract claims2. Verify performance evidence3. Test cost inference4. Audit migration assumption5. Prosecute decision6. Defend decision7. Cross-examine8. Generate alternatives9. Analyze risks10. Reconcile evidence11. JudgePossible verdict:PARTIALLY_VALIDReason:Performance is strongly supported, but cost reduction andmigration feasibility remain insufficiently supported.
+55. Module 53 — Final Verdict Schema
+{  "verdict": "PARTIALLY_VALID",  "confidence": 0.78,  "decision_correctness": {    "status": "LIKELY_VALID",    "confidence": 0.72  },  "decision_justification": {    "status": "INSUFFICIENT",    "confidence": 0.61  },  "requirements": [],  "claims": [],  "evidence": [],  "assumptions": [],  "risks": [],  "counterarguments": [],  "defense_arguments": [],  "alternatives": [],  "unresolved_questions": [],  "missing_information": [],  "critical_decision_drivers": [],  "recommended_next_actions": []}
+56. Module 54 — Implementation Roadmap
+Phase 1: Case input, decomposition, claims, evidence, assumptions, basic agents, orchestrator, Judge, verdict.
+Phase 2: Decision graph, RAG, document ingestion, Prosecution, Defense, Cross Examination.
+Phase 3: Alternatives, risk analysis, sensitivity analysis, what-if analysis, incremental evaluation.
+Phase 4: Authentication, organizations, audit logs, versioning, observability, human review.
+57. Core Design Rules
+Never fabricate evidence.
+Never treat an agent inference as a verified fact.
+Never force an uncertain case into YES/NO.
+Never use majority voting as the final adjudication method.
+Never expose private chain-of-thought.
+Preserve provenance for important information.
+Keep LLM providers replaceable.
+Keep agent roles modular.
+Run independent agents in parallel.
+Re-evaluate only affected graph nodes when new evidence arrives.
+Use human review for consequential/high-impact decisions.
+Treat external documents as untrusted data.
+58. Final System Definition
+Multi-Agent Decision Court is a domain-agnostic Agentic AI platform that transforms a human's decision into a structured decision graph, assigns specialized autonomous agents to investigate and validate its claims, audit assumptions and requirements, generate counterarguments and alternatives, conduct adversarial cross-examination, reconcile conflicting evidence, and finally produce an explainable, confidence-aware verdict with human oversight.
+59. Core Innovation
+The key innovation is not simply using multiple agents. It is the combination of a Decision Justification Graph and adversarial multi-agent validation. The system tests whether a decision deserves to be trusted, rather than merely generating another decision.
