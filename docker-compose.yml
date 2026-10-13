@@ -1,0 +1,29 @@
+services:
+  backend:
+    image: python:3.12-slim
+    container_name: madc-backend
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+      - ./.env:/app/.env
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app
+    command: >
+      sh -c "pip install -q -r requirements.txt && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  frontend:
+    image: node:24-slim
+    container_name: madc-frontend
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "5173:5173"
+    command: >
+      sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    depends_on:
+      - backend
