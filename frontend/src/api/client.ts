@@ -34,7 +34,7 @@ export const apiClient = {
   },
 
   async startCourt(caseId: string) {
-    const res = await axios.post(`${API_BASE}/cases/${caseId}/court/start`);
+    const res = await axios.post(`${API_BASE}/cases/${caseId}/court/start?background=true`);
     return res.data;
   },
 
@@ -61,5 +61,23 @@ export const apiClient = {
   async getAuditLogs(caseId: string) {
     const res = await axios.get(`${API_BASE}/audit/${caseId}`);
     return res.data;
+  },
+
+  getExportMarkdownUrl(caseId: string): string {
+    return `${API_BASE}/cases/${caseId}/export/markdown`;
+  },
+
+  getExportHtmlUrl(caseId: string): string {
+    return `${API_BASE}/cases/${caseId}/export/html`;
+  },
+
+  downloadMarkdown(caseId: string) {
+    const url = `${API_BASE}/cases/${caseId}/export/markdown`;
+    window.open(url, '_blank');
+  },
+
+  openPrintableHtml(caseId: string) {
+    const url = `${API_BASE}/cases/${caseId}/export/html`;
+    window.open(url, '_blank');
   },
 };

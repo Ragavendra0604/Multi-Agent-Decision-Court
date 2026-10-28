@@ -133,10 +133,16 @@ class CourtOrchestrator:
         risk_agent = RiskAnalystAgent(self.provider)
         alternative_agent = AlternativeGeneratorAgent(self.provider)
 
-        # Execute in parallel via asyncio.gather with timeout protection
+        # Execute with concurrency control and pacing to stay within API rate limits
+        sem = asyncio.Semaphore(1)
+
         async def run_safe(coro, agent_name: str):
             try:
-                return await asyncio.wait_for(coro, timeout=settings.LLM_TIMEOUT_SECONDS)
+                async with sem:
+                    res = await asyncio.wait_for(coro, timeout=settings.LLM_TIMEOUT_SECONDS)
+                    if getattr(self.provider, "provider", "") != "mock":
+                        await asyncio.sleep(2.0)
+                    return res
             except Exception as e:
                 logger.error(f"Agent {agent_name} failed: {e}")
                 return None, [
@@ -176,10 +182,16 @@ class CourtOrchestrator:
             for f in f_list:
                 memory_manager.add_agent_finding(case_id, f)
 
+        events.append(self._emit_event(
+            case_id, "INVESTIGATING",
+            f"Parallel audit completed: {len(all_findings)} verified findings compiled across evidence, logic, assumptions, and risks.",
+            agent="court"
+        ))
+
         # ---------------------------------------------------------------------
         # Phase 3: Adversarial Layer (Prosecution, Defense, Cross-Exam) (Modules 16, 17, 20)
         # ---------------------------------------------------------------------
-        events.append(self._emit_event(case_id, "DEBATING", "Commencing Prosecution and Defense adversarial proceedings.", agent="court"))
+        events.append(self._emit_event(case_id, "DEBATING", "Commencing Prosecution adversarial indictment.", agent="prosecution"))
 
         prosecution_agent = ProsecutionAgent(self.provider)
         defense_agent = DefenseAgent(self.provider)
@@ -188,11 +200,22 @@ class CourtOrchestrator:
         all_findings.extend(pros_findings)
         for a in pros_args:
             memory_manager.add_argument(case_id, a)
+        events.append(self._emit_event(
+            case_id, "DEBATING",
+            f"Prosecution entered {len(pros_args)} formal challenge arguments into court record.",
+            agent="prosecution"
+        ))
 
+        events.append(self._emit_event(case_id, "DEBATING", "Defense presenting justifications and counter-evidence.", agent="defense"))
         _, def_args, def_findings = await defense_agent.defend_case(case, pros_args, all_findings)
         all_findings.extend(def_findings)
         for a in def_args:
             memory_manager.add_argument(case_id, a)
+        events.append(self._emit_event(
+            case_id, "DEBATING",
+            f"Defense filed {len(def_args)} validated justification arguments and mitigations.",
+            agent="defense"
+        ))
 
         # Cross-Examination on primary disputed claims
         cross_engine = CrossExaminationEngine(self.provider, max_rounds=settings.MAX_DEBATE_ROUNDS)

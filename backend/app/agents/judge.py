@@ -89,17 +89,23 @@ class JudgeAgent:
             for r in case.requirements + case.constraints
         )
 
+        valid_findings = [f for f in findings if f.status != "ERROR"]
+        if not valid_findings:
+            valid_findings = findings[:8]
+        else:
+            valid_findings = valid_findings[:10]
+
         findings_summary = "\n".join([
-            f"- [{f.agent}] Target {f.target_id}: {f.reason} (Status: {f.status}, Confidence: {f.confidence:.2f})"
-            for f in findings
+            f"- [{f.agent}] {f.reason[:120]} (Status: {f.status})"
+            for f in valid_findings
         ]) or "No agent findings recorded."
 
         arguments_summary = "PROSECUTION:\n" + "\n".join([
-            f"- {a.title}: {a.statement} (Strength: {a.severity_or_strength})"
-            for a in prosecution_arguments
+            f"- {a.title}: {a.statement[:160]}"
+            for a in prosecution_arguments[:4]
         ]) + "\n\nDEFENSE:\n" + "\n".join([
-            f"- {a.title}: {a.statement} (Strength: {a.severity_or_strength})"
-            for a in defense_arguments
+            f"- {a.title}: {a.statement[:160]}"
+            for a in defense_arguments[:4]
         ])
 
         cross_summary = "\n".join([

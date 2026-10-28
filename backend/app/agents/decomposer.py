@@ -164,11 +164,16 @@ class CaseDecomposer:
         for t in structured.theories:
             name = t.get("name", "")
             if name:
+                preconds = t.get('preconditions', [])
+                if isinstance(preconds, str):
+                    preconds = [preconds] if preconds.strip() else []
+                elif not isinstance(preconds, list):
+                    preconds = []
                 theory_objects.append(
                     Theory(
-                        theory_id=generate_id("T"),
+                        theory_id=generate_id('T'),
                         name=name,
-                        preconditions=t.get("preconditions", []),
+                        preconditions=preconds,
                     )
                 )
 

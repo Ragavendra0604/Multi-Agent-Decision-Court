@@ -7,6 +7,7 @@ graph breakdown, adversarial transcripts, sensitivity results, and actionable re
 
 from datetime import datetime, timezone
 from typing import List, Optional
+import markdown
 
 from app.schemas.entities import DecisionCase, generate_id
 from app.schemas.court import (
@@ -184,3 +185,186 @@ class ReportGenerator:
             verdict=verdict,
             markdown_content=markdown_body,
         )
+
+    @classmethod
+    def generate_html(
+        cls,
+        case: DecisionCase,
+        verdict: Verdict,
+        cross_examinations: Optional[List[CrossExaminationTurn]] = None,
+        reconciliations: Optional[List[ReconciledEvidenceItem]] = None,
+        sensitivity: Optional[SensitivityAnalysisOutput] = None,
+    ) -> str:
+        """
+        Generates a self-contained, publication-grade executive HTML decision dossier
+        with integrated print styling for instantaneous PDF export.
+        """
+        report = cls.generate_report(case, verdict, cross_examinations, reconciliations, sensitivity)
+        html_body = markdown.markdown(
+            report.markdown_content,
+            extensions=["tables", "fenced_code", "nl2br", "sane_lists"]
+        )
+
+        html_body = html_body.replace(
+            "<blockquote>\n<p>[!NOTE]",
+            "<blockquote class=\"callout-note\"><p><strong>NOTE:</strong>"
+        )
+
+        verdict_val = verdict.verdict.value if hasattr(verdict.verdict, "value") else str(verdict.verdict)
+        verdict_color = "#10b981" if verdict_val == "APPROVED" else (
+            "#ef4444" if verdict_val == "REJECTED" else "#f59e0b"
+        )
+
+        return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Decision Dossier: {case.title} ({case.case_id})</title>
+<style>
+  :root {{
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --bg: #0f172a;
+    --card-bg: #1e293b;
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+    --border: #334155;
+    --verdict-color: {verdict_color};
+  }}
+  * {{ box-sizing: border-box; }}
+  body {{
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.6;
+    color: #1e293b;
+    background-color: #f8fafc;
+    margin: 0;
+    padding: 0;
+  }}
+  .action-bar {{
+    position: sticky;
+    top: 0;
+    background: #0f172a;
+    color: #f8fafc;
+    padding: 12px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+  }}
+  .action-bar h1 {{
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }}
+  .btn-print {{
+    background: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.2s;
+  }}
+  .btn-print:hover {{
+    background: #1d4ed8;
+  }}
+  .container {{
+    max-width: 900px;
+    margin: 40px auto;
+    background: white;
+    padding: 48px;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+    border: 1px solid #e2e8f0;
+  }}
+  h1 {{ font-size: 2rem; color: #0f172a; margin-top: 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; }}
+  h2 {{ font-size: 1.4rem; color: #1e293b; margin-top: 36px; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; }}
+  h3 {{ font-size: 1.15rem; color: #334155; margin-top: 24px; }}
+  blockquote {{
+    margin: 20px 0;
+    padding: 16px 20px;
+    border-left: 4px solid var(--verdict-color);
+    background-color: #f8fafc;
+    border-radius: 0 8px 8px 0;
+    color: #334155;
+  }}
+  blockquote.callout-note {{
+    border-left-color: #3b82f6;
+    background-color: #eff6ff;
+  }}
+  table {{
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 0.95rem;
+  }}
+  th, td {{
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid #e2e8f0;
+  }}
+  th {{
+    background-color: #f1f5f9;
+    color: #475569;
+    font-weight: 600;
+  }}
+  tr:hover td {{
+    background-color: #f8fafc;
+  }}
+  code {{
+    background: #f1f5f9;
+    color: #0f172a;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.9em;
+  }}
+  hr {{
+    border: none;
+    border-top: 1px solid #e2e8f0;
+    margin: 32px 0;
+  }}
+  @media print {{
+    .no-print {{ display: none !important; }}
+    body {{ background: white; }}
+    .container {{
+      max-width: 100%;
+      margin: 0;
+      padding: 0;
+      box-shadow: none;
+      border: none;
+    }}
+    h1, h2, h3 {{ page-break-after: avoid; }}
+    table, blockquote {{ page-break-inside: avoid; }}
+    @page {{ margin: 1.5cm; }}
+  }}
+</style>
+</head>
+<body>
+<div class="action-bar no-print">
+  <h1>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    Executive Decision Court Adjudication Dossier
+  </h1>
+  <button class="btn-print" onclick="window.print()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+    Print / Save as PDF
+  </button>
+</div>
+<div class="container">
+  {html_body}
+</div>
+</body>
+</html>
+"""

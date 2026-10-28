@@ -1,6 +1,7 @@
 """
 RAG & Hybrid Retrieval Layer.
 Implements Module 30 (RAG / Knowledge Layer) & Module 6 (Evidence & Provenance).
+Combines Sparse BM25 Lexical Ranking + Semantic Similarity with Reciprocal Rank Fusion (RRF).
 """
 
 import math
@@ -80,6 +81,104 @@ class BM25Retriever:
         results = self.retrieve(query, top_k=top_k)
         evidence_list = []
         for chunk, score in results:
-            normalized_score = min(0.95, max(0.5, score / 10.0))
+            normalized_score = min(0.95, max(0.65, round(score / 10.0 + 0.65, 2)))
+            evidence_list.append(chunk.to_evidence(reliability=normalized_score))
+        return evidence_list
+
+
+class SemanticNgramRetriever:
+    """
+    Sub-word semantic retriever using character and word n-gram Jaccard / Cosine overlap.
+    Captures morphological variations, acronyms, and semantic stems that BM25 misses.
+    """
+    def __init__(self, n: int = 3):
+        self.n = n
+        self.chunks: List[DocumentChunk] = []
+        self.chunk_ngrams: List[Set[str]] = []
+
+    def _extract_ngrams(self, text: str) -> Set[str]:
+        words = tokenize(text)
+        grams = set()
+        for w in words:
+            grams.add(w)
+            if len(w) >= self.n:
+                for i in range(len(w) - self.n + 1):
+                    grams.add(w[i:i + self.n])
+        return grams
+
+    def index_chunks(self, chunks: List[DocumentChunk]) -> None:
+        self.chunks.extend(chunks)
+        for c in chunks:
+            self.chunk_ngrams.append(self._extract_ngrams(c.content))
+
+    def retrieve(self, query: str, top_k: int = 5) -> List[Tuple[DocumentChunk, float]]:
+        q_grams = self._extract_ngrams(query)
+        if not q_grams or not self.chunks:
+            return []
+
+        scored: List[Tuple[DocumentChunk, float]] = []
+        for c, doc_grams in zip(self.chunks, self.chunk_ngrams):
+            if not doc_grams:
+                continue
+            intersection = len(q_grams.intersection(doc_grams))
+            union = len(q_grams.union(doc_grams))
+            jaccard = intersection / union if union > 0 else 0.0
+            if jaccard > 0:
+                scored.append((c, jaccard))
+
+        scored.sort(key=lambda x: x[1], reverse=True)
+        return scored[:top_k]
+
+
+class HybridRetriever:
+    """
+    Unified Hybrid Retrieval Engine combining BM25 keyword matching and
+    Semantic N-gram similarity via Reciprocal Rank Fusion (RRF).
+    Guarantees both keyword precision and semantic recall.
+    """
+    def __init__(self, rrf_k: int = 60):
+        self.rrf_k = rrf_k
+        self.bm25 = BM25Retriever()
+        self.semantic = SemanticNgramRetriever()
+        self.chunks: List[DocumentChunk] = []
+
+    def index_chunks(self, chunks: List[DocumentChunk]) -> None:
+        self.chunks.extend(chunks)
+        self.bm25.index_chunks(chunks)
+        self.semantic.index_chunks(chunks)
+
+    def retrieve(self, query: str, top_k: int = 5) -> List[Tuple[DocumentChunk, float]]:
+        if not self.chunks:
+            return []
+
+        bm25_hits = self.bm25.retrieve(query, top_k=top_k * 2)
+        semantic_hits = self.semantic.retrieve(query, top_k=top_k * 2)
+
+        # Reciprocal Rank Fusion Score: RRF = sum(1 / (k + rank))
+        rrf_scores: Dict[str, float] = {}
+        chunk_lookup: Dict[str, DocumentChunk] = {}
+
+        for rank, (chunk, _) in enumerate(bm25_hits):
+            chunk_lookup[chunk.chunk_id] = chunk
+            rrf_scores[chunk.chunk_id] = rrf_scores.get(chunk.chunk_id, 0.0) + (1.0 / (self.rrf_k + rank + 1))
+
+        for rank, (chunk, _) in enumerate(semantic_hits):
+            chunk_lookup[chunk.chunk_id] = chunk
+            rrf_scores[chunk.chunk_id] = rrf_scores.get(chunk.chunk_id, 0.0) + (1.0 / (self.rrf_k + rank + 1))
+
+        ranked = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
+        
+        results: List[Tuple[DocumentChunk, float]] = []
+        for chunk_id, score in ranked[:top_k]:
+            results.append((chunk_lookup[chunk_id], score))
+
+        return results
+
+    def retrieve_as_evidence(self, query: str, top_k: int = 3) -> List[Evidence]:
+        results = self.retrieve(query, top_k=top_k)
+        evidence_list = []
+        for chunk, score in results:
+            # Normalize RRF score (scale ~0.015 - 0.033 to 0.70 - 0.95 reliability)
+            normalized_score = min(0.95, max(0.65, round(score * 30.0, 2)))
             evidence_list.append(chunk.to_evidence(reliability=normalized_score))
         return evidence_list

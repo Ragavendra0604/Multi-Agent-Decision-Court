@@ -44,7 +44,7 @@ class BaseLLMProvider(ABC):
         self,
         messages: List[LLMMessage],
         temperature: float = 0.2,
-        max_tokens: Optional[int] = 4096,
+        max_tokens: Optional[int] = 1536,
         model_override: Optional[str] = None,
     ) -> LLMResponse:
         pass
@@ -58,7 +58,7 @@ class MockLLMProvider(BaseLLMProvider):
         self,
         messages: List[LLMMessage],
         temperature: float = 0.2,
-        max_tokens: Optional[int] = 4096,
+        max_tokens: Optional[int] = 1536,
         model_override: Optional[str] = None,
     ) -> LLMResponse:
         # Check system prompt or last message to return context-aware JSON responses
@@ -400,7 +400,7 @@ class OpenRouterProvider(BaseLLMProvider):
         self,
         messages: List[LLMMessage],
         temperature: float = 0.2,
-        max_tokens: Optional[int] = 4096,
+        max_tokens: Optional[int] = 1536,
         model_override: Optional[str] = None,
     ) -> LLMResponse:
         if not self.api_key:
@@ -449,7 +449,7 @@ class HuggingFaceProvider(BaseLLMProvider):
         self,
         messages: List[LLMMessage],
         temperature: float = 0.2,
-        max_tokens: Optional[int] = 4096,
+        max_tokens: Optional[int] = 1536,
         model_override: Optional[str] = None,
     ) -> LLMResponse:
         if not self.api_key:
@@ -504,7 +504,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         self,
         messages: List[LLMMessage],
         temperature: float = 0.2,
-        max_tokens: Optional[int] = 4096,
+        max_tokens: Optional[int] = 1536,
         model_override: Optional[str] = None,
     ) -> LLMResponse:
         headers = {
@@ -534,25 +534,146 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             )
 
 
+class GroqProvider(BaseLLMProvider):
+    """
+    Dedicated Groq Cloud provider with ultra-fast inference and JSON object mode.
+    """
+    def __init__(
+        self,
+        model_name: Optional[str] = None,
+        api_key: Optional[str] = None,
+        timeout: float = 60.0,
+    ):
+        model = model_name or settings.GROQ_MODEL or settings.LLM_MODEL or "openai/gpt-oss-120b"
+        key = api_key or settings.GROQ_API_KEY or settings.OPENAI_API_KEY
+        super().__init__(model, key, timeout)
+        self.base_url = "https://api.groq.com/openai/v1/chat/completions"
+
+    async def generate_text(
+        self,
+        messages: List[LLMMessage],
+        temperature: float = 0.2,
+        max_tokens: Optional[int] = 1536,
+        model_override: Optional[str] = None,
+    ) -> LLMResponse:
+        if not self.api_key:
+            raise ValueError("GROQ_API_KEY is not configured. Please set it in your .env file.")
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": model_override or self.model_name,
+            "messages": [m.model_dump() for m in messages],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "response_format": {"type": "json_object"},
+        }
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.post(self.base_url, headers=headers, json=payload)
+            if response.status_code != 200:
+                raise RuntimeError(f"Groq API error {response.status_code}: {response.text}")
+
+            data = response.json()
+            content = data["choices"][0]["message"]["content"]
+            usage = data.get("usage", {})
+            return LLMResponse(
+                content=content,
+                raw_response=data,
+                model=model_override or self.model_name,
+                usage=usage,
+                provider="groq",
+            )
+
+
+class CascadingLLMProvider(BaseLLMProvider):
+    """
+    Resilient multi-provider manager that chains LLM providers in sequence.
+    If the primary provider (e.g. Groq) encounters rate limits (429), token quotas,
+    or service errors, it seamlessly fails over to the secondary provider (e.g. OpenRouter).
+    """
+    def __init__(self, providers: List[BaseLLMProvider]):
+        primary = providers[0] if providers else MockLLMProvider("mock")
+        super().__init__(model_name=primary.model_name, api_key=primary.api_key, timeout=primary.timeout)
+        self.providers = providers
+        self.provider = "cascading"
+
+    async def generate_text(
+        self,
+        messages: List[LLMMessage],
+        temperature: float = 0.2,
+        max_tokens: Optional[int] = 1536,
+        model_override: Optional[str] = None,
+    ) -> LLMResponse:
+        errors = []
+        for i, p in enumerate(self.providers):
+            try:
+                resp = await p.generate_text(
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    model_override=model_override if i == 0 else None,
+                )
+                if i > 0:
+                    logger.info(f"CascadingLLMProvider: served request via fallback provider '{getattr(p, 'provider', type(p).__name__)}'")
+                return resp
+            except Exception as e:
+                p_name = getattr(p, "provider", type(p).__name__)
+                err_msg = f"{p_name} ({p.model_name}): {e}"
+                logger.warning(f"Provider failed in cascade: {err_msg}. Failing over to next provider...")
+                errors.append(err_msg)
+
+        raise RuntimeError(f"All providers in cascade failed: {'; '.join(errors)}")
+
+
 def get_llm_provider(
     provider_name: Optional[str] = None,
-    model_name: Optional[str] = None
+    model_name: Optional[str] = None,
+    enable_cascade: bool = True,
 ) -> BaseLLMProvider:
     """
-    Factory function returning the configured LLM provider.
+    Factory function returning the configured LLM provider, with multi-provider
+    automatic failover cascade enabled by default.
     """
     name = (provider_name or settings.LLM_PROVIDER).lower()
-    model = model_name or settings.LLM_MODEL
     
-    if name == "openrouter":
-        return OpenRouterProvider(model_name=model)
-    elif name == "huggingface":
-        return HuggingFaceProvider(model_name=model)
-    elif name in ("openai", "custom"):
-        return OpenAICompatibleProvider(model_name=model)
-    else:
+    if name == "mock":
+        return MockLLMProvider(model_name=model_name or settings.LLM_MODEL)
+
+    if not enable_cascade or not getattr(settings, "ENABLE_CASCADE", True):
+        model = model_name or (settings.GROQ_MODEL if name == "groq" else settings.LLM_MODEL)
+        if name == "groq":
+            return GroqProvider(model_name=model)
+        elif name == "openrouter":
+            return OpenRouterProvider(model_name=model)
+        elif name == "huggingface":
+            return HuggingFaceProvider(model_name=model)
+        elif name in ("openai", "custom"):
+            return OpenAICompatibleProvider(model_name=model)
         return MockLLMProvider(model_name=model)
 
+    chain: List[BaseLLMProvider] = []
+    if name == "groq":
+        if settings.GROQ_API_KEY:
+            chain.append(GroqProvider(model_name=model_name or settings.GROQ_MODEL))
+        if settings.OPENROUTER_API_KEY:
+            chain.append(OpenRouterProvider(model_name=settings.OPENROUTER_MODEL))
+    elif name == "openrouter":
+        if settings.OPENROUTER_API_KEY:
+            chain.append(OpenRouterProvider(model_name=model_name or settings.OPENROUTER_MODEL))
+        if settings.GROQ_API_KEY:
+            chain.append(GroqProvider(model_name=settings.GROQ_MODEL))
+    elif name in ("openai", "custom"):
+        chain.append(OpenAICompatibleProvider(model_name=model_name or settings.LLM_MODEL))
+        if settings.GROQ_API_KEY:
+            chain.append(GroqProvider(model_name=settings.GROQ_MODEL))
+
+    if not chain:
+        chain.append(MockLLMProvider(model_name="mock"))
+
+    return CascadingLLMProvider(chain) if len(chain) > 1 else chain[0]
 
 async def execute_structured_prompt(
     provider: BaseLLMProvider,
@@ -589,7 +710,8 @@ async def execute_structured_prompt(
 
     for attempt in range(1, max_retries + 1):
         try:
-            model_to_use = fallback_model if (attempt == max_retries and fallback_model) else None
+            effective_fallback = fallback_model or settings.FALLBACK_LLM_MODEL
+            model_to_use = effective_fallback if (attempt >= 2 and effective_fallback) else None
             response = await provider.generate_text(
                 messages=current_messages,
                 temperature=temperature,
@@ -617,6 +739,16 @@ async def execute_structured_prompt(
         except Exception as e:
             last_error = e
             logger.error(f"Provider generation error on attempt {attempt}: {e}")
-            await asyncio.sleep(1.0 * attempt)
+            import re
+            err_str = str(e)
+            match = re.search(r"try again in ([\d\.]+)s", err_str)
+            if match:
+                wait_time = float(match.group(1)) + 1.2
+                logger.info(f"Rate limited by provider. Sleeping for {wait_time:.1f}s before retry...")
+                await asyncio.sleep(wait_time)
+            elif "429" in err_str:
+                await asyncio.sleep(5.0 * attempt)
+            else:
+                await asyncio.sleep(1.0 * attempt)
 
     raise ValueError(f"Failed to generate structured output after {max_retries} attempts. Error: {last_error}")

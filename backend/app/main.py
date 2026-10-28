@@ -48,12 +48,14 @@ app.include_router(audit_router)
 
 @app.get("/api/health")
 async def health_check():
+    from app.services.llm_provider import get_llm_provider
+    provider = get_llm_provider()
     return {
         "status": "healthy",
         "app": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "llm_provider": settings.LLM_PROVIDER,
-        "llm_model": settings.LLM_MODEL,
+        "llm_model": provider.model_name,
     }
 
 

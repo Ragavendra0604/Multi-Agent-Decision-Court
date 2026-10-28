@@ -14,16 +14,20 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     
     # LLM Settings (Module 27)
-    LLM_PROVIDER: Literal["mock", "openrouter", "huggingface", "openai", "custom"] = "mock"
+    LLM_PROVIDER: Literal["mock", "openrouter", "huggingface", "openai", "custom", "groq"] = "groq"
     LLM_MODEL: str = Field(
-        default="meta-llama/llama-3.3-70b-instruct:free",
-        validation_alias=AliasChoices("LLM_MODEL", "OPENROUTER_MODEL")
+        default="openai/gpt-oss-120b",
+        validation_alias=AliasChoices("LLM_MODEL", "OPENROUTER_MODEL", "GROQ_MODEL")
     )
-    FALLBACK_LLM_MODEL: str = "google/gemini-2.0-flash-lite:free"
+    FALLBACK_LLM_MODEL: str = "openai/gpt-oss-20b"
     OPENROUTER_API_KEY: Optional[str] = None
+    OPENROUTER_MODEL: str = "recursive/flint-v1.0:free"
     HUGGINGFACE_API_KEY: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_BASE_URL: Optional[str] = None
+    GROQ_API_KEY: Optional[str] = None
+    GROQ_MODEL: str = "openai/gpt-oss-120b"
+    ENABLE_CASCADE: bool = True
     
     # Execution & Cost Settings (Module 46 & 47)
     MAX_DEBATE_ROUNDS: int = 3

@@ -89,6 +89,8 @@ export const CaseWorkspace: React.FC = () => {
             loadVerdict();
             loadFindings();
             setIsRunning(false);
+          } else if (data.phase === 'ERROR') {
+            setIsRunning(false);
           }
         } catch (e) {
           console.error('WS parse error', e);
@@ -106,14 +108,16 @@ export const CaseWorkspace: React.FC = () => {
     if (!caseId) return;
     try {
       setIsRunning(true);
+      setActiveTab('court');
       const res = await apiClient.startCourt(caseId);
-      setVerdict(res.verdict);
-      loadCase();
-      loadFindings();
-      setActiveTab('verdict');
+      if (res && res.verdict) {
+        setVerdict(res.verdict);
+        loadCase();
+        loadFindings();
+        setIsRunning(false);
+      }
     } catch (err: any) {
       alert(`Court execution error: ${err.message}`);
-    } finally {
       setIsRunning(false);
     }
   };
